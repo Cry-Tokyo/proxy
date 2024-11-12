@@ -7,14 +7,15 @@ use std::{
 };
 
 use rustls_pemfile::{certs, private_key};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{
-    rustls::{ClientConfig, RootCertStore, ServerConfig},
-    TlsAcceptor,
+    rustls::{pki_types::ServerName, ClientConfig, RootCertStore, ServerConfig},
+    TlsAcceptor, TlsConnector,
 };
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let addr: SocketAddr = "127.0.0.1".parse().unwrap();
+    let server_addr: SocketAddr = "127.0.0.1".parse().unwrap();
+    let client_addr: SocketAddr = "127.0.0.1".parse().unwrap();
     let cert = certs(&mut BufReader::new(File::open("").unwrap()))
         .map(|f| f.unwrap())
         .collect();
@@ -28,8 +29,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_config = ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(cert, key)?;
+    let connector = TlsConnector::from(Arc::new(client_config));
     let acceptor = TlsAcceptor::from(Arc::new(server_config));
-    let listener = TcpListener::bind(addr).await.unwrap();
+    let listener = TcpListener::bind(server_addr).await.unwrap();
+    let stream = TcpStream::connect(client_addr).await?;
+    let domain = ServerName::try_from("localhost")?;
     loop {
         let (stream, peer_addr) = listener.accept().await.unwrap();
         let acceptor = acceptor.clone();
